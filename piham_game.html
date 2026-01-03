@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Piham Simulator: Somnath Heights</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Courier New', monospace; user-select: none; }
+        
+        /* UI LAYERS */
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+        
+        /* CROSSHAIR */
+        #crosshair { 
+            position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; 
+            background: #00ff00; border-radius: 50%; transform: translate(-50%, -50%);
+            border: 2px solid black; opacity: 0.8;
+        }
+
+        /* METERS */
+        .meter-container { 
+            margin: 20px; background: rgba(0,0,0,0.8); padding: 15px; 
+            border: 2px solid #555; width: 300px; 
+        }
+        .bar { height: 20px; transition: width 0.2s; }
+        #anxiety-bar { background: #ff00ff; width: 0%; }
+        
+        /* SUBTITLES - The main way we tell the story */
+        #subtitle-box {
+            text-align: center; margin-bottom: 80px; 
+            font-size: 28px; color: #ffff00; 
+            text-shadow: 2px 2px 0 #000; letter-spacing: 1px;
+            background: rgba(0,0,0,0.8); padding: 20px; display: none;
+            width: 80%; align-self: center; border-radius: 5px; border: 2px solid #ffff00;
+        }
+
+        /* NOTIFICATIONS */
+        #objective-box { 
+            position: absolute; top: 20px; right: 20px; color: gold; 
+            text-align: right; background: rgba(0,0,0,0.6); padding: 15px; 
+            border: 1px solid gold; font-weight: bold;
+        }
+        
+        /* SCREENS - Cleaned up to prevent getting stuck */
+        #start-screen, #win-screen, #lose-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #111; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 100; color: white;
+        }
+        
+        button { 
+            padding: 20px 40px; font-size: 24px; cursor: pointer; 
+            background: #00ff00; color: black; border: 4px solid #005500; 
+            font-weight: 900; margin-top: 30px; text-transform: uppercase;
+        }
+        button:hover { background: #fff; color: #000; }
+        
+        h1 { font-size: 80px; color: #ff0055; text-transform: uppercase; margin: 0; }
+        p { font-size: 20px; max-width: 700px; text-align: center; line-height: 1.6; color: #ccc; }
+
+        .safe-indicator { color: #00ff00; font-weight: bold; display: none; margin-top: 10px; font-size: 18px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="crosshair"></div>
+    <div id="hud">
+        <div class="meter-container">
+            <div style="color: #ff00ff; font-weight: bold;">SOCIAL ANXIETY</div>
+            <div style="background: #333; height: 20px; margin-top: 5px;">
+                <div class="bar" id="anxiety-bar"></div>
+            </div>
+            <div id="safe-txt" class="safe-indicator">[ SAFE ZONE ACTIVE - HE CAN'T ENTER ]</div>
+        </div>
+        
+        <div id="subtitle-box"></div>
+
+        <div class="meter-container" id="boss-container" style="display:none; align-self: center; border-color: red; margin-bottom: 20px;">
+            <div id="boss-name" style="color:red; text-align:center; font-weight:900; font-size: 24px;">KIAN (BIRTHDAY BOY)</div>
+        </div>
+    </div>
+
+    <div id="objective-box">
+        <div style="font-size: 14px; color: #aaa;">CURRENT VIBE: RUINING IT</div>
+        <div id="current-obj" style="font-size: 20px;">OBJ: Ruin 3 Pranks (0/3)</div>
+    </div>
+
+    <div id="start-screen">
+        <h1>Somnath Heights</h1>
+        <p>You are Piham. You are notoriously unfunny. <br>Your landlord, Aryan Patel, is chasing you.</p>
+        <p><strong>WASD</strong> to Move | <strong>MOUSE</strong> to Look | <strong>CLICK</strong> to Tell Bad Joke</p>
+        <p style="color: gold; margin-top: 20px;">MISSION: Ruin 3 Pranks in the building.</p>
+        <button id="start-btn">ENTER APARTMENTS</button>
+    </div>
+
+    <div id="win-screen" style="display:none;">
+        <h1 style="color: gold;">TRUE ENDING</h1>
+        <p>Kian beat you up. It was honestly really funny.</p>
+        <p>Social Status: <strong>LEGENDARY FAILURE</strong></p>
+        <button onclick="location.reload()">PLAY AGAIN</button>
+    </div>
+
+    <div id="lose-screen" style="display:none;">
+        <h1>BAD ENDING</h1>
+        <p>You survived? That's boring, Piham. Try dying next time.</p>
+        <button onclick="location.reload()">RESTART</button>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { PointerLockControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/PointerLockControls.js';
+
+        // --- CUSTOM SHADERS (CEL SHADING) ---
+        // This gives the game that "Light Hearted Horror" cartoon look 
+        const celVertexShader = `
+            varying vec3 vNormal;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const celFragmentShader = `
+            uniform vec3 color;
+            varying vec3 vNormal;
+            void main() {
+                vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5)); 
+                float intensity = dot(lightDir, vNormal);
+                vec3 finalColor;
+                
+                // The "Toon" Bands
+                if (intensity > 0.95) finalColor = color;
+                else if (intensity > 0.5) finalColor = color * 0.7;
+                else if (intensity > 0.25) finalColor = color * 0.4;
+                else finalColor = color * 0.1; 
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `;
+
+        // --- GAME STATE ---
+        const STATE = {
+            pranksRuined: 0,
+            anxiety: 0,
+            isPlaying: false,
+            bossMode: false,
+            enemyStunned: false,
+            inSafeZone: false
+        };
+
+        const ARYAN_DIALOGUE = [
+            "PIHAM STOP BREATHING SO LOUD",
+            "I KNOW YOU'RE IN THE HALLWAY",
+            "BRO PLEASE JUST LEAVE",
+            "THIS IS MY APARTMENT COMPLEX",
+            "I'M CALLING THE COPS PIHAM",
+            "STOP RUINING THE VIBE"
+        ];
+
+        const KIAN_DIALOGUE = [
+            "MY BIRTHDAY PRANK! YOU RUINED IT!",
+            "I BOUGHT THAT CAKE MYSELF PIHAM!",
+            "NO MORE JOKES! FIGHT ME!",
+            "WHY ARE YOU LIKE THIS?!",
+            "I'M GONNA EAT YOU!"
+        ];
+
+        // --- THREE.JS GLOBALS ---
+        let scene, camera, renderer, controls;
+        let enemy, walls = [], safeZones = [];
+        let raycaster;
+
+        // --- INIT ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+            scene.fog = new THREE.Fog(0x0a0a0a, 0, 40);
+            document.getElementById('anxiety-bar').style.width = '0%';
+
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+
+            // Controls Setup
+            controls = new PointerLockControls(camera, document.body);
+            scene.add(controls.getObject());
+            controls.getObject().position.set(0, 6, 60);
+
+
+            const startBtn = document.getElementById('start-btn');
+            startBtn.addEventListener('click', () => {
+                controls.lock();
+                document.getElementById('start-screen').style.display = 'none';
+                STATE.isPlaying = true;
+                startDialogueLoop();
+            });
+
+            // Lighting
+            const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambient);
+
+            // 
+            generateLevel();
+            createEnemy(); 
+            
+            raycaster = new THREE.Raycaster();
+            document.addEventListener('mousedown', onPlayerClick);
+            
+            animate();
+        }
+
+        // --- LEVEL GENERATION ---
+        function generateLevel() {
+            // Floor
+            const floorGeo = new THREE.PlaneGeometry(200, 200);
+            const floorMat = new THREE.ShaderMaterial({
+                uniforms: { color: { value: new THREE.Color(0x332222) } }, 
+                vertexShader: celVertexShader,
+                fragmentShader: celFragmentShader
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            // Ceiling (High Corridors)
+            const ceil = new THREE.Mesh(floorGeo, floorMat.clone());
+            ceil.position.y = 15; 
+            ceil.rotation.x = Math.PI / 2;
+            scene.add(ceil);
+
+            // Walls Material
+            const wallMat = new THREE.ShaderMaterial({
+                uniforms: { color: { value: new THREE.Color(0x444455) } }, 
+                vertexShader: celVertexShader,
+                fragmentShader: celFragmentShader
+            });
+            
+            // Procedural Grid
+            for(let x = -80; x <= 80; x+=20) {
+                for(let z = -80; z <= 80; z+=20) {
+                    // Create walls but leave lanes open
+                    if (Math.random() > 0.3) { 
+                        createBuildingBlock(x, z, wallMat);
+                    } else {
+                        // Open Space - Chance for Random Safe Zone (Rest Area)
+                        if(Math.random() > 0.7) createSafeZone(x, z);
+                    }
+                }
+            }
+            
+            // Objectives (Pranks)
+            // 1. Kian's Birthday
+            createObjective(40, 40, "Kian's Fake Birthday Cake");
+            // 2. The Bucket
+            createObjective(-40, 40, "Slime Bucket Trap");
+            // 3. The Ghost Kids
+            createObjective(0, -60, "Kids in Ghost Sheets");
+        }
+
+        function createBuildingBlock(x, z, mat) {
+            const geo = new THREE.BoxGeometry(10, 15, 10);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 7.5, z);
+            scene.add(mesh);
+            walls.push(new THREE.Box3().setFromObject(mesh));
+            
+            // Edges for Cel-Shaded look
+            const outlineGeo = new THREE.EdgesGeometry(geo);
+            const outlineMat = new THREE.LineBasicMaterial({ color: 0x000000 });
+            const outline = new THREE.LineSegments(outlineGeo, outlineMat);
+            mesh.add(outline);
+        }
+
+        function createSafeZone(x, z) {
+            // Safe Zone Logic - Aryan cannot enter these coordinates
+            const light = new THREE.PointLight(0x00ff00, 1.5, 12);
+            light.position.set(x, 4, z);
+            scene.add(light);
+            
+            // Floor Marker
+            const marker = new THREE.Mesh(
+                new THREE.CircleGeometry(6, 32),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00, opacity: 0.2, transparent: true, side: THREE.DoubleSide })
+            );
+            marker.rotation.x = -Math.PI/2;
+            marker.position.set(x, 0.1, z);
+            scene.add(marker);
+
+            safeZones.push(new THREE.Vector3(x, 0, z));
+        }
+
+        function createObjective(x, z, label) {
+            const geo = new THREE.IcosahedronGeometry(1.5, 0);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+            const obj = new THREE.Mesh(geo, mat);
+            obj.position.set(x, 2, z);
+            obj.userData = { isPrank: true, active: true, label: label };
+            scene.add(obj);
+
+            // Objective Rooms are ALWAYS Safe Zones
+            createSafeZone(x, z);
+        }
+
+        // --- CHARACTER: ARYAN / KIAN ---
+        function createEnemy() {
+            enemy = new THREE.Group();
+
+            // Material: Dark Skin Tone
+            const skinMat = new THREE.ShaderMaterial({
+                uniforms: { color: { value: new THREE.Color(0x2b1d14) } }, 
+                vertexShader: celVertexShader,
+                fragmentShader: celFragmentShader
+            });
+
+            // 
+            // TORSO - Absolutely Massive
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(6, 6, 4), skinMat);
+            torso.position.y = 6; 
+            enemy.add(torso);
+
+            // HEAD
+            const head = new THREE.Mesh(new THREE.BoxGeometry(2, 2.5, 2), skinMat);
+            head.position.y = 10;
+            enemy.add(head);
+
+            // ARMS - Like tree trunks
+            const armGeo = new THREE.BoxGeometry(2, 6, 2);
+            const lArm = new THREE.Mesh(armGeo, skinMat);
+            lArm.position.set(-4, 6, 0);
+            const rArm = new THREE.Mesh(armGeo, skinMat);
+            rArm.position.set(4, 6, 0);
+            enemy.add(lArm);
+            enemy.add(rArm);
+
+            // LEGS
+            const legGeo = new THREE.BoxGeometry(2.5, 4, 2.5);
+            const lLeg = new THREE.Mesh(legGeo, skinMat);
+            lLeg.position.set(-1.5, 2, 0);
+            const rLeg = new THREE.Mesh(legGeo, skinMat);
+            rLeg.position.set(1.5, 2, 0);
+            enemy.add(lLeg);
+            enemy.add(rLeg);
+
+            // EYES - Glowing Red
+            const eyeGeo = new THREE.SphereGeometry(0.3);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.5, 10.2, 1.1);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.5, 10.2, 1.1);
+            enemy.add(leftEye);
+            enemy.add(rightEye);
+
+            enemy.position.set(0, 0, -40);
+            scene.add(enemy);
+            
+            enemy.userData = { speed: 0.18, state: 'CHASE', name: 'Aryan' };
+        }
+
+        // --- GAME LOGIC ---
+
+        function onPlayerClick() {
+            if(!STATE.isPlaying || STATE.anxiety >= 100) return;
+
+            // Joke Mechanic increases anxiety
+            STATE.anxiety += 10;
+            updateUI();
+            
+            // Raycast for Objectives
+            raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+            const intersects = raycaster.intersectObjects(scene.children,true);
+            
+            // Check Prank Ruining
+            for (let hit of intersects) {
+                if(hit.object.userData.isPrank && hit.object.userData.active) {
+                    if(camera.position.distanceTo(hit.object.position) < 12) {
+                        ruinPrank(hit.object);
+                        return;
+                    }
+                }
+            }
+
+            // Joke / Stun Logic
+            const dist = camera.position.distanceTo(enemy.position);
+            if(dist < 30) {
+                if(STATE.bossMode) {
+                     triggerSubtitle("KIAN: I'M NOT LAUGHING PIHAM!", true);
+                } else {
+                     triggerSubtitle("ARYAN: UGH! SO UNFUNNY!", true);
+                     stunEnemy();
+                }
+            } else {
+                 triggerSubtitle("PIHAM: (Yells a bad joke into the void)");
+            }
+        }
+
+        function ruinPrank(obj) {
+            obj.userData.active = false;
+            obj.visible = false;
+            STATE.pranksRuined++;
+            
+            triggerSubtitle(`RUINED: ${obj.userData.label}`);
+            document.getElementById('current-obj').innerText = `OBJ: Ruin 3 Pranks (${STATE.pranksRuined}/3)`;
+            
+            // Prank #1 is Kian's Birthday. If ruined, Kian cries.
+            if(obj.userData.label.includes("Birthday")) {
+                triggerSubtitle("KIAN (Off-screen): NO! MY CAKE! WHY PIHAM?!", true);
+            }
+
+            if(STATE.pranksRuined === 3) startBossFight();
+        }
+
+        function stunEnemy() {
+            if(STATE.enemyStunned) return;
+            STATE.enemyStunned = true;
+            enemy.userData.state = 'STUNNED';
+            setTimeout(() => {
+                STATE.enemyStunned = false;
+                enemy.userData.state = 'CHASE';
+            }, 3000);
+        }
+
+        function startBossFight() {
+            STATE.bossMode = true;
+            document.getElementById('boss-container').style.display = 'block';
+            document.getElementById('current-obj').innerText = "OBJECTIVE: DIE. LET KIAN KILL YOU.";
+            document.getElementById('current-obj').style.color = "red";
+            document.getElementById('current-obj').style.fontWeight = "900";
+
+            // TRANSFORM ARYAN INTO KIAN
+            // Kian is bigger and faster because he is mad about the cake
+            enemy.scale.set(1.5, 1.5, 1.5); 
+            enemy.userData.speed = 0.38; // Very Fast
+            enemy.userData.name = 'Kian';
+            
+            // Change lights to Red
+            scene.children.forEach(c => {
+                if(c.isPointLight) c.color.setHex(0xff0000);
+            });
+            scene.background = new THREE.Color(0x330000); // Red Sky
+            
+            triggerSubtitle("KIAN: THAT'S IT PIHAM! I'M COMING DOWN!", true);
+        }
+
+        function checkSafeZones() {
+            // Boss Mode = No Safe Zones (Kian doesn't care about rules)
+            if(STATE.bossMode) {
+                STATE.inSafeZone = false;
+                document.getElementById('safe-txt').style.display = 'none';
+                return;
+            }
+
+            let safe = false;
+            for(let zone of safeZones) {
+                if(camera.position.distanceTo(zone) < 9) {
+                    safe = true;
+                    break;
+                }
+            }
+            
+            STATE.inSafeZone = safe;
+            document.getElementById('safe-txt').style.display = safe ? 'block' : 'none';
+
+            // Enemy AI Reaction to Safe Zone
+            if(safe && enemy.userData.state !== 'FLEE') {
+                enemy.userData.state = 'FLEE';
+                triggerSubtitle("ARYAN: I'm not going in there.", false);
+            } else if (!safe && enemy.userData.state === 'FLEE' && camera.position.distanceTo(enemy.position) > 40) {
+                enemy.userData.state = 'CHASE';
+            }
+        }
+
+        function updateEnemy() {
+            if(STATE.enemyStunned) {
+                enemy.rotation.y += 0.2; 
+                return;
+            }
+
+            const playerPos = camera.position.clone();
+            playerPos.y = 0; 
+
+            const enemyPos = enemy.position.clone();
+            const dist = playerPos.distanceTo(enemyPos);
+
+            checkSafeZones();
+
+            let dir = new THREE.Vector3();
+
+            if(enemy.userData.state === 'FLEE') {
+                // Move away from player
+                dir.subVectors(enemyPos, playerPos).normalize();
+                enemy.position.add(dir.multiplyScalar(0.15));
+                enemy.lookAt(playerPos); 
+            } 
+            else if (enemy.userData.state === 'CHASE') {
+                // Move towards player
+                dir.subVectors(playerPos, enemyPos).normalize();
+                enemy.position.add(dir.multiplyScalar(enemy.userData.speed));
+                enemy.lookAt(playerPos);
+
+                // Catch Logic
+                if(dist < 8) { // Larger hitbox for massive enemy
+                    if(STATE.bossMode) {
+                        endGame(true); // Victory (Kian kills you)
+                    } else {
+                        endGame(false); // Game Over (Aryan caught you)
+                    }
+                }
+            }
+            
+            // Walking Animation (Bobbing)
+            enemy.position.y = (STATE.bossMode ? 8 : 6) + Math.sin(Date.now() * 0.012) * 0.5;
+        }
+
+        function triggerSubtitle(text, force = false) {
+            const box = document.getElementById('subtitle-box');
+            // Don't overwrite urgent messages unless forced
+            if(box.style.display === 'block' && !force) return;
+            
+            box.innerText = text;
+            box.style.display = 'block';
+            
+            // Clear previous timeout
+            if(box.timeout) clearTimeout(box.timeout);
+            
+            box.timeout = setTimeout(() => { box.style.display = 'none'; }, 3500);
+        }
+
+        function startDialogueLoop() {
+            setInterval(() => {
+                if(!STATE.isPlaying) return;
+                
+                // Only play ambient dialogue if not stunned and far away
+                if(!STATE.enemyStunned && camera.position.distanceTo(enemy.position) > 30) {
+                    if(STATE.bossMode) {
+                        const line = KIAN_DIALOGUE[Math.floor(Math.random() * KIAN_DIALOGUE.length)];
+                        triggerSubtitle(`KIAN (Screaming): ${line}`);
+                    } else {
+                        const line = ARYAN_DIALOGUE[Math.floor(Math.random() * ARYAN_DIALOGUE.length)];
+                        triggerSubtitle(`ARYAN (Hunting): ${line}`);
+                    }
+                }
+            }, 6000);
+        }
+
+        // --- INPUT & LOOP ---
+        const moveSpeed = 0.6;
+        const direction = new THREE.Vector3();
+        const moveState = { fwd: false, bwd: false, left: false, right: false };
+
+        document.addEventListener('keydown', (e) => {
+            if(e.code === 'KeyW') moveState.fwd = true;
+            if(e.code === 'KeyS') moveState.bwd = true;
+            if(e.code === 'KeyA') moveState.left = true;
+            if(e.code === 'KeyD') moveState.right = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if(e.code === 'KeyW') moveState.fwd = false;
+            if(e.code === 'KeyS') moveState.bwd = false;
+            if(e.code === 'KeyA') moveState.left = false;
+            if(e.code === 'KeyD') moveState.right = false;
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if(!STATE.isPlaying) return;
+
+            if(controls.isLocked) {
+                direction.z = Number(moveState.fwd) - Number(moveState.bwd);
+                direction.x = Number(moveState.right) - Number(moveState.left);
+                direction.normalize();
+
+                if (moveState.fwd || moveState.bwd) controls.moveForward(direction.z * moveSpeed);
+                if (moveState.left || moveState.right) controls.moveRight(direction.x * moveSpeed);
+                
+                camera.position.y = 6; // Eye height
+                
+                // Wall Collision
+                for(let box of walls) {
+                    if(box.containsPoint(camera.position)) {
+                        controls.moveForward(direction.z * -moveSpeed * 2);
+                    }
+                }
+            }
+
+            updateEnemy();
+            
+            // Animate Prank Objects
+            scene.children.forEach(c => {
+                if(c.userData.isPrank && c.visible) {
+                    c.rotation.y += 0.05;
+                    c.position.y = 2 + Math.sin(Date.now() * 0.005);
+                }
+            });
+
+            // Anxiety decay
+            if(STATE.anxiety > 0) {
+                STATE.anxiety -= 0.03;
+                document.getElementById('anxiety-bar').style.width = STATE.anxiety + '%';
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function endGame(victory) {
+            STATE.isPlaying = false;
+            controls.unlock();
+            if(victory) {
+                document.getElementById('win-screen').style.display = 'flex';
+            } else {
+                document.getElementById('lose-screen').style.display = 'flex';
+            }
+        }
+
+        init(  );
+    </script>
+</body>
+</html>
