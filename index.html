@@ -2,23 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Piham Simulator: Final</title>
+    <title>Piham Simulator: NUCLEAR FIX</title>
     <style>
-        /* --- STYLE: SOMNATH TERMINAL --- */
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; user-select: none; }
         
-        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
         #crosshair { 
             position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; 
             background: #0f0; transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px #0f0; z-index: 10;
+            box-shadow: 0 0 10px #0f0;
         }
 
         /* METERS */
         .meter-box { 
             position: absolute; bottom: 30px; left: 30px;
-            background: rgba(0, 20, 0, 0.9); 
+            background: rgba(0, 20, 0, 0.95); 
             border: 2px solid #0f0; padding: 15px; width: 350px; 
         }
         .bar-bg { background: #003300; height: 20px; width: 100%; border: 1px solid #005500; }
@@ -34,32 +33,27 @@
             background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00ff00;
         }
 
-        /* DIALOGUE BOX (FIXED VISIBILITY) */
+        /* DIALOGUE BOX (FORCED VISIBILITY) */
         #subtitle-box {
-            position: absolute; bottom: 200px; width: 100%; text-align: center; pointer-events: none;
-            display: flex; flex-direction: column; align-items: center;
+            position: absolute; bottom: 250px; width: 100%; text-align: center; pointer-events: none;
+            display: flex; flex-direction: column; align-items: center; z-index: 9999 !important;
         }
         .speaker-name {
-            padding: 5px 15px; font-size: 18px; font-weight: 900;
-            border: 2px solid #fff; border-bottom: none; margin-bottom: -2px; z-index: 2;
+            padding: 5px 15px; font-size: 20px; font-weight: 900;
+            border: 3px solid #fff; border-bottom: none; margin-bottom: -2px; 
             text-transform: uppercase; background: #000;
         }
         .sub-text {
-            display: inline-block; padding: 20px 40px; font-size: 24px; 
+            display: inline-block; padding: 20px 40px; font-size: 28px; 
             font-weight: bold; border-radius: 10px; margin-bottom: 10px;
-            text-shadow: 1px 1px 0 #000; max-width: 800px; 
-            border: 3px solid #fff; position: relative; z-index: 1;
+            text-shadow: 2px 2px 0 #000; max-width: 900px; 
+            border: 4px solid #fff; background: rgba(0,0,0,0.95);
         }
         
-        /* High Contrast Themes */
         .piham-style .speaker-name { color: #00ffff; border-color: #00ffff; }
-        .piham-style .sub-text { 
-            color: #00ffff; background: rgba(0, 0, 50, 0.95); border-color: #00ffff; 
-        }
+        .piham-style .sub-text { color: #00ffff; border-color: #00ffff; }
         .patel-style .speaker-name { color: #ff0000; border-color: #ff0000; }
-        .patel-style .sub-text { 
-            color: #ffff00; background: rgba(50, 0, 0, 0.95); border-color: #ff0000; 
-        }
+        .patel-style .sub-text { color: #ffff00; border-color: #ff0000; }
 
         /* MINIMAP */
         #minimap-container {
@@ -155,7 +149,7 @@
     </div>
 
     <script>
-        // --- TEXTURE GENERATOR (Procedural Somnath Style) ---
+        // --- TEXTURE GENERATOR (Procedural) ---
         const TexGen = {
             createCanvas: function(w, h, color) {
                 const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -202,17 +196,18 @@
         };
 
         // --- AUDIO ---
-        const AudioEngine = {
-            ctx: null,
-            init: function() { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
-            playTone: function(freq, type, duration, vol=0.1) {
-                if(!this.ctx) return;
-                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
-                osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-                osc.connect(gain); gain.connect(this.ctx.destination);
-                osc.start(); osc.stop(this.ctx.currentTime + duration);
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        const SoundGen = {
+            init: () => { audioCtx = new AudioCtx(); },
+            playTone: (freq, type, dur, vol=0.1) => {
+                if(!audioCtx) return;
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+                osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + dur);
             },
             playJoke: function() { 
                 this.playTone(300, 'sawtooth', 0.2, 0.1); setTimeout(()=>this.playTone(200, 'sawtooth', 0.4, 0.1), 200);
@@ -265,7 +260,6 @@
             animate();
         }
 
-        // --- LEVEL GENERATION (OPEN DOORS & TEXTURES) ---
         function buildSomnathHeights() {
             const matWall = new THREE.MeshLambertMaterial({ map: TexGen.wall() });
             const matFloor = new THREE.MeshLambertMaterial({ map: TexGen.tile() });
@@ -293,7 +287,7 @@
             createRoom(25, 40, "104", 0x00ff00, false);   
 
             // Bucket
-            const bucket = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.8, 1.5), new THREE.MeshLambertMaterial({color:0x0000ff}));
+            const bucket = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.8, 1.5), new THREE.MeshLambertMaterial({color:0x555555}));
             bucket.position.set(0, 0.75, 10); scene.add(bucket);
             roomTriggers.push({ pos: new THREE.Vector3(0,0,10), radius: 3, id: 'bucket', mesh: bucket });
         }
@@ -321,11 +315,11 @@
             
             // Front Wall (Split for Door)
             const wallX = x > 0 ? x-15 : x+15;
-            createWall(wallX, z-5, 2, 8, matWall);
-            createWall(wallX, z+5, 2, 8, matWall);
+            createWall(wallX, z-6, 2, 6, matWall);
+            createWall(wallX, z+6, 2, 6, matWall);
             
             // Lintel (Top of door)
-            const lintel = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 4), matWall);
+            const lintel = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 6), matWall);
             lintel.position.set(wallX, 8.5, z); scene.add(lintel);
 
             const l = new THREE.PointLight(lightColor, 1, 15); l.position.set(x, 8, z); scene.add(l);
@@ -398,14 +392,14 @@
             sprite.scale.set(3, 1.5, 1);
             scene.add(sprite); floaters.push({mesh: sprite, age: 0});
 
-            const ring = new THREE.Mesh(new THREE.RingGeometry(1, 30, 32), new THREE.MeshBasicMaterial({color: 0xffff00, side: THREE.DoubleSide, transparent:true}));
+            const ring = new THREE.Mesh(new THREE.RingGeometry(1, 50, 32), new THREE.MeshBasicMaterial({color: 0xffff00, side: THREE.DoubleSide, transparent:true}));
             ring.rotation.x = -Math.PI/2; ring.position.copy(camera.position); ring.position.y = 1;
             scene.add(ring); projectiles.push({ mesh: ring, scale: 1, age: 0 });
             SoundGen.playJoke();
 
             // LOGIC (INSTANT)
             const distAryan = camera.position.distanceTo(aryan.position);
-            if(distAryan < 30) { // Massive hitbox
+            if(distAryan < 50) { // Massive hitbox 50 units
                 if(STATE.bossActive) {
                     STATE.hp -= 5; updateBossBar();
                 } else {
@@ -415,7 +409,7 @@
                 }
             }
             crackheads.forEach(c => {
-                if(c.visible && camera.position.distanceTo(c.position) < 30) {
+                if(c.visible && camera.position.distanceTo(c.position) < 50) {
                     c.visible = false; c.position.y = -100; SoundGen.playPop();
                 }
             });
@@ -424,24 +418,27 @@
 
         function checkObjectives() {
             const pPos = camera.position;
+            const txt = document.getElementById('current-obj');
+            
             roomTriggers.forEach(room => {
                 if(pPos.distanceTo(room.pos) < room.radius) {
                     if(STATE.step === 0 && room.id === '101') {
-                        STATE.step = 1; updateObjective();
-                    } else if(STATE.step === 1 && room.id === '102') {
-                        STATE.step = 2; updateObjective();
-                    } else if(STATE.step === 2 && room.id === 'bucket') {
-                        STATE.step = 3; room.mesh.visible = false; updateObjective();
-                    } else if(STATE.step === 3 && room.id === '104') {
-                        STATE.step = 4; updateObjective(); startBossFight();
+                        STATE.step = 1; txt.innerText = "OBJ: SNITCH TO DIMITRI (ROOM 102)";
+                        showSubtitle("PIHAM", "Look at them... I must tell Dimi.", "piham-style");
+                    }
+                    else if(STATE.step === 1 && room.id === '102') {
+                        STATE.step = 2; txt.innerText = "OBJ: FIND SLIME BUCKET (HALLWAY)";
+                        showSubtitle("PIHAM", "Dimitri! Kian is faking it!", "piham-style");
+                    }
+                    else if(STATE.step === 2 && room.id === 'bucket') {
+                        STATE.step = 3; room.mesh.visible = false; txt.innerText = "OBJ: FIND GHOST KIDS (ROOM 104)";
+                    }
+                    else if(STATE.step === 3 && room.id === '104') {
+                        STATE.step = 4; txt.innerText = "OBJ: SURVIVE THE BIRTHDAY BOY";
+                        startBossFight();
                     }
                 }
             });
-        }
-
-        function updateObjective() {
-            const txt = ["GO TO ROOM 101 (FAKE PARTY)", "GO TO ROOM 102 (TELL DIMITRI)", "TIP BUCKET (HALLWAY)", "EXPOSE GHOSTS (ROOM 104)", "DIE."];
-            document.getElementById('objective-box').innerText = "OBJ: " + txt[STATE.step];
         }
 
         function startBossFight() {
@@ -480,6 +477,8 @@
             if(controls.isLocked) {
                 const speed = 15;
                 const dir = new THREE.Vector3();
+                dir.z = moveInput.f - moveInput.b; dir.x = moveInput.r - moveInput.l; dir.normalize();
+
                 const camDir = new THREE.Vector3(); controls.getDirection(camDir); camDir.y = 0; camDir.normalize();
                 const camSide = new THREE.Vector3().crossVectors(camera.up, camDir).normalize();
                 
