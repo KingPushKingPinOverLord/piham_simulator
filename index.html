@@ -2,560 +2,541 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Piham Simulator: NUCLEAR FIX</title>
+    <title>Piham Simulator: Somnath Heights</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; user-select: none; }
         
-        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        /* UI LAYERS */
+        #hud { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
         
+        /* CROSSHAIR */
         #crosshair { 
-            position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; 
-            background: #0f0; transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px #0f0;
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; 
+            background: lime; border-radius: 50%; transform: translate(-50%, -50%);
+            border: 2px solid black; opacity: 0.8;
         }
 
         /* METERS */
-        .meter-box { 
-            position: absolute; bottom: 30px; left: 30px;
-            background: rgba(0, 20, 0, 0.95); 
-            border: 2px solid #0f0; padding: 15px; width: 350px; 
-        }
-        .bar-bg { background: #003300; height: 20px; width: 100%; border: 1px solid #005500; }
-        .bar-fill { height: 100%; width: 0%; transition: width 0.1s linear; background: #00ff00; }
+        .meter-container { margin: 20px; background: rgba(0,0,0,0.8); padding: 10px; border: 3px solid #fff; width: 300px; }
+        .bar { height: 20px; transition: width 0.2s; }
+        #anxiety-bar { background: #ff00ff; width: 0%; }
+        #boss-hp-bar { background: #ff0000; width: 100%; display: none; }
         
-        #cooldown-msg { text-align: right; font-weight: bold; margin-top: 5px; color: yellow; }
-        #safe-msg { color: lime; font-weight: bold; display: none; margin-top: 10px; }
-
-        /* OBJECTIVES */
-        #objective-box { 
-            position: absolute; top: 30px; left: 30px; color: #00ff00; 
-            text-shadow: 0 0 5px #00ff00; font-size: 24px; font-weight: bold;
-            background: rgba(0,0,0,0.8); padding: 15px; border: 2px solid #00ff00;
-        }
-
-        /* DIALOGUE BOX (FORCED VISIBILITY) */
+        /* SUBTITLES */
         #subtitle-box {
-            position: absolute; bottom: 250px; width: 100%; text-align: center; pointer-events: none;
-            display: flex; flex-direction: column; align-items: center; z-index: 9999 !important;
+            text-align: center; margin-bottom: 100px; 
+            font-size: 24px; color: #ffff00; text-shadow: 2px 2px 0 #000;
+            background: rgba(0,0,0,0.6); padding: 10px; display: none;
+            width: 60%; align-self: center; border-radius: 10px;
         }
-        .speaker-name {
-            padding: 5px 15px; font-size: 20px; font-weight: 900;
-            border: 3px solid #fff; border-bottom: none; margin-bottom: -2px; 
-            text-transform: uppercase; background: #000;
-        }
-        .sub-text {
-            display: inline-block; padding: 20px 40px; font-size: 28px; 
-            font-weight: bold; border-radius: 10px; margin-bottom: 10px;
-            text-shadow: 2px 2px 0 #000; max-width: 900px; 
-            border: 4px solid #fff; background: rgba(0,0,0,0.95);
-        }
+
+        /* NOTIFICATIONS */
+        #objective-box { position: absolute; top: 20px; right: 20px; color: gold; text-align: right; background: rgba(0,0,0,0.5); padding: 10px; }
         
-        .piham-style .speaker-name { color: #00ffff; border-color: #00ffff; }
-        .piham-style .sub-text { color: #00ffff; border-color: #00ffff; }
-        .patel-style .speaker-name { color: #ff0000; border-color: #ff0000; }
-        .patel-style .sub-text { color: #ffff00; border-color: #ff0000; }
-
-        /* MINIMAP */
-        #minimap-container {
-            position: absolute; top: 30px; right: 30px;
-            width: 200px; height: 200px;
-            background: #000; border: 2px solid #00ff00;
-            border-radius: 50%; overflow: hidden; opacity: 0.9;
-        }
-        #minimap { width: 100%; height: 100%; }
-
-        /* BOSS BAR */
-        #boss-container {
-            position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-            width: 60%; display: none; text-align: center;
-        }
-        #boss-name {
-            color: #ffcccc; font-size: 24px; text-transform: uppercase; 
-            text-shadow: 0px 0px 10px red; letter-spacing: 2px; margin-bottom: 5px;
-        }
-        #boss-hp-bg { width: 100%; height: 20px; background: #330000; border: 2px solid #ff0000; }
-        #boss-hp-fill { width: 100%; height: 100%; background: #ff0000; }
-
-        /* SCREENS - RED TITLE RESTORED */
-        .screen { 
+        /* SCREENS */
+        #start-screen, #win-screen, #lose-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; z-index: 100;
-            pointer-events: auto; font-family: 'Courier New', monospace;
+            background: rgba(10, 10, 10, 0.95); display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 10; color: white;
         }
-        
-        #start-screen h1 { font-size: 80px; color: #ff0000; margin: 0; text-shadow: 0 0 20px #900; }
-        #start-screen p { font-size: 20px; color: #cccccc; max-width: 700px; text-align: center; margin-top: 20px; }
-        
-        button { 
-            padding: 20px 50px; font-size: 24px; cursor: pointer; 
-            background: #00ff00; color: black; border: none; 
-            font-weight: 900; margin-top: 40px; text-transform: uppercase;
-            font-family: 'Courier New', monospace;
-        }
-        button:hover { background: #fff; transform: scale(1.05); }
+        button { padding: 15px 30px; font-size: 20px; cursor: pointer; background: lime; border: none; font-weight: bold; margin-top: 20px; }
+        h1 { font-size: 60px; color: #ff0055; text-transform: uppercase; margin: 0; }
+        p { font-size: 18px; max-width: 600px; text-align: center; }
 
     </style>
-
-    <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.147.0/examples/js/controls/PointerLockControls.js"></script>
-
 </head>
 <body>
 
     <div id="crosshair"></div>
-    
     <div id="hud">
-        <div id="objective-box">LOADING...</div>
+        <div class="meter-container">
+            <div>SOCIAL ANXIETY</div>
+            <div class="bar" id="anxiety-bar"></div>
+        </div>
+        
         <div id="subtitle-box"></div>
 
-        <div class="meter-box">
-            <div style="font-weight: bold; color: #00ff00;">SOCIAL ANXIETY</div>
-            <div class="bar-bg"><div id="anxiety-bar" class="bar-fill"></div></div>
-            <div id="cooldown-msg">JOKE READY</div>
-            <div id="safe-msg">[ SAFE ZONE - PATEL CAN'T ENTER ]</div>
+        <div class="meter-container" id="boss-container" style="display:none; align-self: center;">
+            <div style="color:red; text-align:center;">ARYAN PATEL (THE LANDLORD)</div>
+            <div class="bar" id="boss-hp-bar"></div>
         </div>
-        
-        <div id="boss-container">
-            <div id="boss-name">KIAN (BIRTHDAY BOY)</div>
-            <div id="boss-hp-bg"><div id="boss-hp-fill"></div></div>
-        </div>
-        
-        <div id="minimap-container"><canvas id="minimap" width="200" height="200"></canvas></div>
     </div>
 
-    <div id="start-screen" class="screen">
-        <h1>SOMNATH HEIGHTS</h1>
-        <p>
-            You are Piham. You are notoriously unfunny.<br>
-            Your landlord, Aryan Patel, is chasing you.
-        </p>
-        <p style="color: #ffff00; font-weight: bold;">
-            MISSION: Ruin Kian's Surprise Party.
-        </p>
-        <button id="start-btn">ENTER APARTMENTS</button>
+    <div id="objective-box">
+        <h3>CURRENT VIBE: RUINING IT</h3>
+        <div id="current-obj">OBJ: Find 3 Pranks to Ruin (0/3)</div>
     </div>
 
-    <div id="win-screen" class="screen" style="display:none">
-        <h1 style="color:gold">TRUE ENDING</h1>
-        <p style="color:white">Kian beat you up. Everyone loved it.</p>
+    <div id="start-screen">
+        <h1>Somnath Heights</h1>
+        <p>You are Piham. You are unfunny. <br>Aryan Patel wants to beat you up for it.</p>
+        <p>WASD to Move | MOUSE to Look | CLICK to Joke</p>
+        <p style="color: yellow;">GOAL: Ruin 3 Pranks, then DIE to win.</p>
+        <button id="start-btn">ENTER THE APARTMENTS</button>
+    </div>
+
+    <div id="win-screen" style="display:none;">
+        <h1 style="color: gold;">TRUE ENDING</h1>
+        <p>You died. It was hilarious. Aryan is satisfied.</p>
+        <p>Social Status: LEGENDARY FAILURE</p>
         <button onclick="location.reload()">PLAY AGAIN</button>
     </div>
 
-    <div id="lose-screen" class="screen" style="display:none">
-        <h1 style="color:red">YOU HAVE BEEN CAUGHT BY PATEL</h1>
-        <p style="color:red">He ate you. Game Over.</p>
-        <button onclick="location.reload()">TRY AGAIN</button>
+    <div id="lose-screen" style="display:none;">
+        <h1>BAD ENDING</h1>
+        <p>You accidentally survived? That's not funny, Piham.</p>
+        <button onclick="location.reload()">TRY DYING NEXT TIME</button>
     </div>
 
-    <script>
-        // --- TEXTURE GENERATOR (Procedural) ---
-        const TexGen = {
-            createCanvas: function(w, h, color) {
-                const c = document.createElement('canvas'); c.width = w; c.height = h;
-                const ctx = c.getContext('2d'); ctx.fillStyle = color; ctx.fillRect(0,0,w,h);
-                return {c, ctx};
-            },
-            wall: function() {
-                // Cream color with Teal border
-                const {c, ctx} = this.createCanvas(512, 512, '#f5f5dc'); 
-                for(let i=0; i<5000; i++) {
-                    ctx.fillStyle = Math.random()>0.5 ? '#e0e0c0' : '#ffffea';
-                    ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
-                }
-                ctx.lineWidth = 40; ctx.strokeStyle = '#008080'; // Teal
-                ctx.strokeRect(0,0,512,512);
-                return new THREE.CanvasTexture(c);
-            },
-            tile: function() {
-                const {c, ctx} = this.createCanvas(512, 512, '#ffffff'); 
-                ctx.fillStyle = '#e0e0e0';
-                for(let i=0; i<4; i++) for(let j=0; j<4; j++) if((i+j)%2===0) ctx.fillRect(i*128, j*128, 128, 128);
-                const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 15);
-                return t;
-            },
-            ceiling: function() {
-                const {c, ctx} = this.createCanvas(512, 512, '#333333'); 
-                ctx.fillStyle = '#404040'; for(let i=0; i<1000; i++) ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
-                const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 15);
-                return t;
-            },
-            residentText: function() {
-                const {c, ctx} = this.createCanvas(256, 64, 'rgba(0,0,0,0.8)');
-                ctx.fillStyle = '#00ff00'; ctx.font = 'bold 24px Courier'; ctx.textAlign = 'center';
-                ctx.fillText("SOMNATH RESIDENT", 128, 40);
-                return new THREE.CanvasTexture(c);
-            },
-            jokeText: function(text) {
-                const {c, ctx} = this.createCanvas(512, 128, 'rgba(0,0,0,0)');
-                ctx.fillStyle = "#ffff00"; ctx.font = "bold 80px Impact"; 
-                ctx.strokeStyle = "black"; ctx.lineWidth = 6;
-                ctx.strokeText(text, 256, 100); ctx.textAlign = "center"; ctx.fillText(text, 256, 100);
-                return new THREE.CanvasTexture(c);
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { PointerLockControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/PointerLockControls.js';
+
+        // --- CUSTOM SHADERS (CEL SHADING) ---
+        const celVertexShader = `
+            varying vec3 vNormal;
+            void main() {
+                vNormal = normalize(normalMatrix * normal);
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
+        `;
+
+        const celFragmentShader = `
+            uniform vec3 color;
+            varying vec3 vNormal;
+            void main() {
+                vec3 lightDir = normalize(vec3(0.5, 1.0, 0.5)); // Fixed light source
+                float intensity = dot(lightDir, vNormal);
+                vec3 finalColor;
+                
+                // The "Toon" Bands
+                if (intensity > 0.95) finalColor = color;
+                else if (intensity > 0.5) finalColor = color * 0.7;
+                else if (intensity > 0.25) finalColor = color * 0.4;
+                else finalColor = color * 0.1; // Deep shadow
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `;
+
+        // --- GAME STATE ---
+        const STATE = {
+            pranksRuined: 0,
+            anxiety: 0,
+            isPlaying: false,
+            bossMode: false,
+            playerHp: 100,
+            aryanStunned: false
         };
 
-        // --- AUDIO ---
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        let audioCtx;
-        const SoundGen = {
-            init: () => { audioCtx = new AudioCtx(); },
-            playTone: (freq, type, dur, vol=0.1) => {
-                if(!audioCtx) return;
-                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-                osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
-                osc.connect(gain); gain.connect(audioCtx.destination);
-                osc.start(); osc.stop(audioCtx.currentTime + dur);
-            },
-            playJoke: function() { 
-                this.playTone(300, 'sawtooth', 0.2, 0.1); setTimeout(()=>this.playTone(200, 'sawtooth', 0.4, 0.1), 200);
-            },
-            playPop: function() { this.playTone(150, 'square', 0.1, 0.1); },
-            playBossMusic: function() {
-                if(this.bossInt) return;
-                this.bossInt = setInterval(() => { this.playTone(60, 'sawtooth', 0.5, 0.1); }, 800);
-            }
-        };
+        const ARYAN_DIALOGUE = [
+            "PIHAM STOP BREATHING SO LOUD",
+            "I KNOW YOU'RE IN THE WALLS",
+            "BRO PLEASE JUST LEAVE",
+            "THIS IS MY APARTMENT COMPLEX",
+            "I'M CALLING THE COPS PIHAM",
+            "STOP RUINING THE VIBE"
+        ];
 
-        // --- GAME ENGINE ---
-        const STATE = { hp: 100, anxiety: 0, stamina: 100, step: 0, isPlaying: false, bossActive: false, jokeTimer: 0, inSafeZone: false };
-        const DAD_JOKES = ["I'm on a seafood diet. I see food and I eat it.", "What do you call a fake noodle? An Impasta.", "Why don't skeletons fight? No guts.", "I used to be a banker but I lost interest."];
-        const PATEL_SCREAMS = ["PIHAM! STOP!", "I AM GOING TO EAT YOU!", "NOT FUNNY!", "STOP RUINING THE VIBE!"];
-
+        // --- THREE.JS GLOBALS ---
         let scene, camera, renderer, controls;
-        let aryan, crackheads = [], walls = [], roomTriggers = [], projectiles = [], floaters = [];
-        let lastTime = performance.now();
-        let moveInput = { f:0, b:0, l:0, r:0 };
+        let aryan, walls = [], safeZones = [];
+        let raycaster;
 
+        // --- INIT ---
         function init() {
+            // Scene
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050505);
-            scene.fog = new THREE.FogExp2(0x050505, 0.03);
+            scene.background = new THREE.Color(0x0a0a0a); // Dark dingy grey
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.y = 2;
+
+            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
             document.body.appendChild(renderer.domElement);
 
-            const amb = new THREE.AmbientLight(0xffffff, 0.5); scene.add(amb);
-            const flashlight = new THREE.PointLight(0xffaa00, 1, 30); camera.add(flashlight); scene.add(camera);
-
+            // Controls
             controls = new PointerLockControls(camera, document.body);
-
-            buildSomnathHeights();
-            createAryan();
-            for(let i=0; i<6; i++) createCrackhead();
-
             document.getElementById('start-btn').addEventListener('click', () => {
+                controls.lock();
                 document.getElementById('start-screen').style.display = 'none';
-                controls.lock(); STATE.isPlaying = true; AudioEngine.init(); updateObjective();
+                STATE.isPlaying = true;
+                startDialogueLoop();
             });
 
-            document.addEventListener('mousedown', attemptJoke);
-            document.addEventListener('keydown', (e)=>{ if(e.code==='KeyW') moveInput.f=1; if(e.code==='KeyS') moveInput.b=1; if(e.code==='KeyA') moveInput.l=1; if(e.code==='KeyD') moveInput.r=1; });
-            document.addEventListener('keyup', (e)=>{ if(e.code==='KeyW') moveInput.f=0; if(e.code==='KeyS') moveInput.b=0; if(e.code==='KeyA') moveInput.l=0; if(e.code==='KeyD') moveInput.r=0; });
+            // Lighting (Ambient + Point lights for safe zones)
+            const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambient);
 
+            // Build Level
+            generateLevel();
+            createAryan();
+            
+            // Interaction
+            raycaster = new THREE.Raycaster();
+            document.addEventListener('click', onPlayerClick);
+            
             animate();
         }
 
-        function buildSomnathHeights() {
-            const matWall = new THREE.MeshLambertMaterial({ map: TexGen.wall() });
-            const matFloor = new THREE.MeshLambertMaterial({ map: TexGen.tile() });
-            const matCeil = new THREE.MeshLambertMaterial({ map: TexGen.ceiling() });
-
-            // Floor/Ceil
-            const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 200), matFloor); floor.rotation.x = -Math.PI/2; scene.add(floor);
-            const ceil = new THREE.Mesh(new THREE.PlaneGeometry(30, 200), matCeil); ceil.rotation.x = Math.PI/2; ceil.position.y = 10; scene.add(ceil);
-
-            // HALLWAY SEGMENTS (Gaps for Doors)
-            // Left (-15)
-            createWall(-15, -80, 2, 60, matWall); 
-            createWall(-15, -25, 2, 20, matWall); 
-            createWall(-15, 50, 2, 100, matWall); 
-            // Right (15)
-            createWall(15, -50, 2, 100, matWall); 
-            createWall(15, 60, 2, 80, matWall);   
-            // End Caps
-            createWall(0, -125, 32, 2, matWall);
-            createWall(0, 125, 32, 2, matWall);
-
-            // ROOMS
-            createRoom(-25, -45, "101", 0xff0000, true); 
-            createRoom(-25, -10, "102", 0x0000ff, false); 
-            createRoom(25, 40, "104", 0x00ff00, false);   
-
-            // Bucket
-            const bucket = new THREE.Mesh(new THREE.CylinderGeometry(1, 0.8, 1.5), new THREE.MeshLambertMaterial({color:0x555555}));
-            bucket.position.set(0, 0.75, 10); scene.add(bucket);
-            roomTriggers.push({ pos: new THREE.Vector3(0,0,10), radius: 3, id: 'bucket', mesh: bucket });
-        }
-
-        function createWall(x, z, w, d, mat) {
-            const geo = new THREE.BoxGeometry(w, 10, d);
-            const wall = new THREE.Mesh(geo, mat);
-            wall.position.set(x, 5, z);
-            scene.add(wall);
-            walls.push(new THREE.Box3().setFromObject(wall));
-        }
-
-        function createRoom(x, z, label, lightColor, isParty) {
-            const matWall = new THREE.MeshLambertMaterial({ map: TexGen.wall() });
-            const matFloor = new THREE.MeshLambertMaterial({ map: TexGen.tile() });
-
+        // --- LEVEL GENERATION ---
+        function generateLevel() {
             // Floor
-            const f = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), matFloor);
-            f.rotation.x = -Math.PI/2; f.position.set(x, 0.1, z); scene.add(f);
+            const floorGeo = new THREE.PlaneGeometry(200, 200);
+            const floorMat = new THREE.ShaderMaterial({
+                uniforms: { color: { value: new THREE.Color(0x332222) } }, // Dirty brown
+                vertexShader: celVertexShader,
+                fragmentShader: celFragmentShader
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            // Ceiling (High Corridors)
+            const ceil = floor.clone();
+            ceil.position.y = 15; // 15 units high!
+            ceil.rotation.x = Math.PI / 2;
+            scene.add(ceil);
+
+            // Walls - Procedural Grid
+            const wallMat = new THREE.ShaderMaterial({
+                uniforms: { color: { value: new THREE.Color(0x444455) } }, // Dingy Blue/Grey
+                vertexShader: celVertexShader,
+                fragmentShader: celFragmentShader
+            });
             
-            // Walls (Back, Sides)
-            createWall(x > 0 ? x+15 : x-15, z, 2, 18, matWall);
-            createWall(x, z-9, 18, 2, matWall);
-            createWall(x, z+9, 18, 2, matWall);
-            
-            // Front Wall (Split for Door)
-            const wallX = x > 0 ? x-15 : x+15;
-            createWall(wallX, z-6, 2, 6, matWall);
-            createWall(wallX, z+6, 2, 6, matWall);
-            
-            // Lintel (Top of door)
-            const lintel = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 6), matWall);
-            lintel.position.set(wallX, 8.5, z); scene.add(lintel);
-
-            const l = new THREE.PointLight(lightColor, 1, 15); l.position.set(x, 8, z); scene.add(l);
-            roomTriggers.push({ pos: new THREE.Vector3(x, 0, z), radius: 8, id: label });
-
-            // Props
-            if(isParty) spawnParty(x, z);
-            else if(label === '102') spawnDimi(x, z);
-            else if(label === '104') spawnGhost(x, z);
-        }
-
-        function spawnParty(x, z) {
-            const cake = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1), new THREE.MeshLambertMaterial({color:0xff69b4}));
-            cake.position.set(x, 1, z); scene.add(cake);
-            const kian = createHumanoid(0xff0000); kian.position.set(x, 3, z-3); scene.add(kian);
-        }
-        function spawnDimi(x, z) {
-            const dimi = createHumanoid(0x0000ff); dimi.position.set(x, 3, z); scene.add(dimi);
-        }
-        function spawnGhost(x, z) {
-            const g = new THREE.Mesh(new THREE.SphereGeometry(1.5), new THREE.MeshBasicMaterial({color:0xffffff}));
-            g.position.set(x, 4, z); scene.add(g);
-        }
-
-        function createHumanoid(color) {
-            const g = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({color:color});
-            const t = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 1), mat); g.add(t);
-            const h = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({color:0x3d2314})); h.position.y=2; g.add(h);
-            return g;
-        }
-
-        function createAryan() {
-            aryan = new THREE.Group();
-            const matSkin = new THREE.MeshLambertMaterial({ color: 0x3d2314 });
-            const matShirt = new THREE.MeshLambertMaterial({ color: 0xffffff }); 
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 2), matShirt); torso.position.y = 4; aryan.add(torso);
-            const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.8, 1.5), matSkin); head.position.y = 6.8; aryan.add(head);
-            const lArm = new THREE.Mesh(new THREE.BoxGeometry(1, 3.5, 1), matSkin); lArm.position.set(-2, 4, 0); aryan.add(lArm);
-            const rArm = new THREE.Mesh(new THREE.BoxGeometry(1, 3.5, 1), matSkin); rArm.position.set(2, 4, 0); aryan.add(rArm);
-            const lLeg = new THREE.Mesh(new THREE.BoxGeometry(1, 3.5, 1), matSkin); lLeg.position.set(-0.8, 1.8, 0); aryan.add(lLeg);
-            const rLeg = new THREE.Mesh(new THREE.BoxGeometry(1, 3.5, 1), matSkin); rLeg.position.set(0.8, 1.8, 0); aryan.add(rLeg);
-            aryan.position.set(0, 0, -90); aryan.userData = { speed: 0.11, stunned: false }; 
-            scene.add(aryan);
-        }
-
-        function createCrackhead() {
-            const mesh = createHumanoid(0x00ff00);
-            mesh.position.set((Math.random()-0.5)*20, 3, (Math.random()-0.5)*100);
-            const sprite = createTextSprite("RESIDENT", "#00ff00");
-            sprite.scale.set(4,1,1); sprite.position.y = 3.5; mesh.add(sprite);
-            scene.add(mesh); crackheads.push(mesh);
-        }
-
-        // --- GAMEPLAY ---
-        function attemptJoke() {
-            if(!STATE.isPlaying || Date.now() < STATE.jokeTimer) return;
-            STATE.jokeTimer = Date.now() + 2000;
-            document.getElementById('cooldown-msg').innerText = "RECHARGING...";
-            document.getElementById('cooldown-msg').style.color = "red";
-            setTimeout(() => { document.getElementById('cooldown-msg').innerText = "JOKE READY"; document.getElementById('cooldown-msg').style.color = "yellow"; }, 2000);
-
-            const joke = DAD_JOKES[Math.floor(Math.random() * DAD_JOKES.length)];
-            showSubtitle("PIHAM", joke, "piham-style");
-            
-            // VISUAL & AOE
-            const tex = TexGen.jokeText(Math.random() > 0.5 ? "HA HA" : "CRINGE");
-            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-            sprite.position.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
-            sprite.scale.set(3, 1.5, 1);
-            scene.add(sprite); floaters.push({mesh: sprite, age: 0});
-
-            const ring = new THREE.Mesh(new THREE.RingGeometry(1, 50, 32), new THREE.MeshBasicMaterial({color: 0xffff00, side: THREE.DoubleSide, transparent:true}));
-            ring.rotation.x = -Math.PI/2; ring.position.copy(camera.position); ring.position.y = 1;
-            scene.add(ring); projectiles.push({ mesh: ring, scale: 1, age: 0 });
-            SoundGen.playJoke();
-
-            // LOGIC (INSTANT)
-            const distAryan = camera.position.distanceTo(aryan.position);
-            if(distAryan < 50) { // Massive hitbox 50 units
-                if(STATE.bossActive) {
-                    STATE.hp -= 5; updateBossBar();
-                } else {
-                    aryan.userData.stunned = true;
-                    showSubtitle("PATEL", "UGH! MY EARS!", "patel-style");
-                    setTimeout(() => aryan.userData.stunned = false, 5000);
+            // Create a "Hollow" Grid
+            for(let x = -80; x <= 80; x+=20) {
+                for(let z = -80; z <= 80; z+=20) {
+                    if (Math.random() > 0.2) { // 80% chance of a pillar block
+                        createBuildingBlock(x, z, wallMat);
+                    } else {
+                        // This is an open area/corridor
+                        if(Math.random() > 0.7) createSafeZone(x, z);
+                    }
                 }
             }
-            crackheads.forEach(c => {
-                if(c.visible && camera.position.distanceTo(c.position) < 50) {
-                    c.visible = false; c.position.y = -100; SoundGen.playPop();
-                }
-            });
-            checkObjectives();
+            
+            // Objective Markers (Floating Pranks)
+            createObjective(30, 30);
+            createObjective(-30, 50);
+            createObjective(50, -20);
         }
 
-        function checkObjectives() {
-            const pPos = camera.position;
-            const txt = document.getElementById('current-obj');
+        function createBuildingBlock(x, z, mat) {
+            const geo = new THREE.BoxGeometry(10, 15, 10);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 7.5, z);
+            scene.add(mesh);
+            walls.push(new THREE.Box3().setFromObject(mesh));
             
-            roomTriggers.forEach(room => {
-                if(pPos.distanceTo(room.pos) < room.radius) {
-                    if(STATE.step === 0 && room.id === '101') {
-                        STATE.step = 1; txt.innerText = "OBJ: SNITCH TO DIMITRI (ROOM 102)";
-                        showSubtitle("PIHAM", "Look at them... I must tell Dimi.", "piham-style");
-                    }
-                    else if(STATE.step === 1 && room.id === '102') {
-                        STATE.step = 2; txt.innerText = "OBJ: FIND SLIME BUCKET (HALLWAY)";
-                        showSubtitle("PIHAM", "Dimitri! Kian is faking it!", "piham-style");
-                    }
-                    else if(STATE.step === 2 && room.id === 'bucket') {
-                        STATE.step = 3; room.mesh.visible = false; txt.innerText = "OBJ: FIND GHOST KIDS (ROOM 104)";
-                    }
-                    else if(STATE.step === 3 && room.id === '104') {
-                        STATE.step = 4; txt.innerText = "OBJ: SURVIVE THE BIRTHDAY BOY";
-                        startBossFight();
-                    }
-                }
+            // Add "Outlines" (Black wireframe clone)
+            const outlineGeo = new THREE.EdgesGeometry(geo);
+            const outlineMat = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
+            const outline = new THREE.LineSegments(outlineGeo, outlineMat);
+            mesh.add(outline);
+        }
+
+        function createSafeZone(x, z) {
+            // Green Light Area
+            const light = new THREE.PointLight(0x00ff00, 2, 15);
+            light.position.set(x, 5, z);
+            scene.add(light);
+            
+            // Visual Marker on Floor
+            const marker = new THREE.Mesh(
+                new THREE.CircleGeometry(4, 32),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00, opacity: 0.2, transparent: true, side: THREE.DoubleSide })
+            );
+            marker.rotation.x = -Math.PI/2;
+            marker.position.set(x, 0.1, z);
+            scene.add(marker);
+
+            safeZones.push(new THREE.Vector3(x, 0, z));
+        }
+
+        function createObjective(x, z) {
+            const geo = new THREE.IcosahedronGeometry(1, 0);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+            const obj = new THREE.Mesh(geo, mat);
+            obj.position.set(x, 2, z);
+            obj.userData = { isPrank: true, active: true };
+            scene.add(obj);
+        }
+
+        // --- ARYAN PATEL (THE BEAST) ---
+        function createAryan() {
+            aryan = new THREE.Group();
+
+            // Material: Pitch Black
+            const skinMat = new THREE.ShaderMaterial({
+                uniforms: { color: { value: new THREE.Color(0x110000) } },
+                vertexShader: celVertexShader,
+                fragmentShader: celFragmentShader
             });
+
+            // Torso (Massive)
+            const torso = new THREE.Mesh(new THREE.SphereGeometry(3, 16, 16), skinMat);
+            torso.position.y = 4;
+            torso.scale.x = 1.5; // Wide
+            aryan.add(torso);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), skinMat);
+            head.position.y = 7.5;
+            aryan.add(head);
+
+            // Glowing Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.2);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.4, 7.6, 0.8);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.4, 7.6, 0.8);
+            aryan.add(leftEye);
+            aryan.add(rightEye);
+
+            // Positioning
+            aryan.position.set(0, 0, -40);
+            scene.add(aryan);
+            
+            aryan.userData = { speed: 0.18, state: 'CHASE' };
+        }
+
+        // --- GAMEPLAY LOGIC ---
+
+        function onPlayerClick() {
+            if(!STATE.isPlaying || STATE.anxiety >= 100) return;
+
+            // Joke Mechanic
+            STATE.anxiety += 15;
+            updateUI();
+            
+            // Check Raycast for Pranks
+            raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+            const intersects = raycaster.intersectObjects(scene.children);
+            
+            // Stun Aryan Logic
+            const dist = camera.position.distanceTo(aryan.position);
+            if(dist < 20) {
+                triggerSubtitle("ARYAN: UGH THAT WAS SO CRINGE!");
+                stunAryan();
+            } else {
+                 triggerSubtitle("PIHAM: (Yells a bad joke into the void)");
+            }
+
+            // Objective Logic
+            for (let hit of intersects) {
+                if(hit.object.userData.isPrank && hit.object.userData.active) {
+                    hit.object.userData.active = false;
+                    hit.object.visible = false;
+                    STATE.pranksRuined++;
+                    document.getElementById('current-obj').innerText = `OBJ: Find 3 Pranks to Ruin (${STATE.pranksRuined}/3)`;
+                    triggerSubtitle("PRANK RUINED. NO FUN ALLOWED.");
+                    
+                    if(STATE.pranksRuined === 3) startBossFight();
+                }
+            }
+        }
+
+        function stunAryan() {
+            if(STATE.aryanStunned) return;
+            STATE.aryanStunned = true;
+            aryan.userData.state = 'STUNNED';
+            setTimeout(() => {
+                STATE.aryanStunned = false;
+                aryan.userData.state = 'CHASE';
+            }, 3000);
         }
 
         function startBossFight() {
-            STATE.bossActive = true;
-            document.getElementById('boss-hud').style.display = 'block';
-            document.getElementById('objective-box').style.color = 'red';
-            SoundGen.playBossMusic();
-            aryan.scale.set(1.5, 1.5, 1.5); aryan.userData.speed = 0.35; 
-            showSubtitle("KIAN", "YOU RUINED EVERYTHING!!", "patel-style");
-            aryan.position.copy(camera.position).add(new THREE.Vector3(0,0,30));
+            STATE.bossMode = true;
+            document.getElementById('boss-container').style.display = 'block';
+            document.getElementById('current-obj').innerText = "OBJECTIVE: DIE. LET HIM CATCH YOU.";
+            document.getElementById('current-obj').style.color = "red";
+            
+            // Make Aryan Faster and Huge
+            aryan.scale.set(2, 2, 2); 
+            aryan.userData.speed = 0.4; // Extremely fast
+            
+            // Turn lights Red
+            scene.children.forEach(c => {
+                if(c.isPointLight) c.color.setHex(0xff0000);
+            });
+            scene.background = new THREE.Color(0x220000);
+            
+            triggerSubtitle("ARYAN: OKAY PIHAM, I'M ACTUALLY MAD NOW.");
         }
 
-        function showSubtitle(speaker, text, css) {
-            const box = document.getElementById('subtitle-box');
-            box.innerHTML = `<div class="speaker-name ${css}">${speaker}</div><div class="sub-text ${css}">${text}</div>`;
-            clearTimeout(window.subT); window.subT = setTimeout(() => box.innerHTML = '', 4000);
-        }
+        function checkSafeZones() {
+            // If Boss Mode, Safe Zones are disabled
+            if(STATE.bossMode) return false;
 
-        function updateBossBar() {
-            const pct = Math.max(0, (STATE.hp / 100) * 100);
-            document.getElementById('boss-fill').style.width = pct + "%";
-            if(STATE.hp <= 0) {
-                document.getElementById('win-screen').style.display = 'flex';
-                controls.unlock();
+            for(let zone of safeZones) {
+                // If Player is in zone
+                if(camera.position.distanceTo(zone) < 6) {
+                    // Aryan runs away
+                    if(aryan.userData.state !== 'FLEE') {
+                        aryan.userData.state = 'FLEE';
+                        triggerSubtitle("ARYAN: I'm not going in there, it smells like Piham.");
+                    }
+                    return true;
+                }
             }
+            // If player left safe zone, Aryan resumes chase
+            if(aryan.userData.state === 'FLEE' && camera.position.distanceTo(aryan.position) > 30) {
+                aryan.userData.state = 'CHASE';
+            }
+            return false;
         }
+
+        function updateAryan() {
+            if(STATE.aryanStunned) {
+                aryan.rotation.y += 0.2; // Spin in cringe
+                return;
+            }
+
+            const playerPos = camera.position.clone();
+            const aryanPos = aryan.position.clone();
+            const dist = playerPos.distanceTo(aryanPos);
+
+            // Handle States
+            if(aryan.userData.state === 'FLEE') {
+                // Run away from player
+                const dir = aryanPos.sub(playerPos).normalize();
+                aryan.position.add(dir.multiplyScalar(0.2));
+                aryan.lookAt(playerPos); // Look back in disgust
+            } 
+            else if (aryan.userData.state === 'CHASE') {
+                // Check Safe Zone logic
+                checkSafeZones();
+
+                // Move towards player
+                const dir = playerPos.sub(aryanPos).normalize();
+                dir.y = 0; // Stay on floor
+                
+                // Simple collision avoidance (sliding)
+                aryan.position.add(dir.multiplyScalar(aryan.userData.speed));
+                aryan.lookAt(camera.position);
+
+                // Catch Logic
+                if(dist < 5) {
+                    if(STATE.bossMode) {
+                        endGame(true); // Victory by Death
+                    } else {
+                        endGame(false); // Game Over (Caught too early)
+                    }
+                }
+            }
+            
+            // Bobbing animation (Walking)
+            aryan.position.y = (STATE.bossMode ? 8 : 4) + Math.sin(Date.now() * 0.01) * 0.5;
+        }
+
+        function triggerSubtitle(text) {
+            const box = document.getElementById('subtitle-box');
+            box.innerText = text;
+            box.style.display = 'block';
+            setTimeout(() => { box.style.display = 'none'; }, 3000);
+        }
+
+        function startDialogueLoop() {
+            setInterval(() => {
+                if(!STATE.isPlaying || STATE.bossMode) return;
+                // Only trigger if not near player (ambient yelling)
+                if(camera.position.distanceTo(aryan.position) > 20) {
+                    const line = ARYAN_DIALOGUE[Math.floor(Math.random() * ARYAN_DIALOGUE.length)];
+                    triggerSubtitle(`ARYAN (Distant): ${line}`);
+                }
+            }, 8000);
+        }
+
+        // --- CORE LOOP ---
+        const moveSpeed = 0.5;
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const prevTime = performance.now();
+        
+        // WASD Input
+        const moveState = { fwd: false, bwd: false, left: false, right: false };
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'KeyW': moveState.fwd = true; break;
+                case 'KeyS': moveState.bwd = true; break;
+                case 'KeyA': moveState.left = true; break;
+                case 'KeyD': moveState.right = true; break;
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'KeyW': moveState.fwd = false; break;
+                case 'KeyS': moveState.bwd = false; break;
+                case 'KeyA': moveState.left = false; break;
+                case 'KeyD': moveState.right = false; break;
+            }
+        });
 
         function animate() {
             requestAnimationFrame(animate);
             if(!STATE.isPlaying) return;
 
-            const time = performance.now();
-            const delta = (time - lastTime) / 1000;
-            lastTime = time;
-
+            // Player Movement
             if(controls.isLocked) {
-                const speed = 15;
-                const dir = new THREE.Vector3();
-                dir.z = moveInput.f - moveInput.b; dir.x = moveInput.r - moveInput.l; dir.normalize();
+                direction.z = Number(moveState.fwd) - Number(moveState.bwd);
+                direction.x = Number(moveState.right) - Number(moveState.left);
+                direction.normalize();
 
-                const camDir = new THREE.Vector3(); controls.getDirection(camDir); camDir.y = 0; camDir.normalize();
-                const camSide = new THREE.Vector3().crossVectors(camera.up, camDir).normalize();
+                if (moveState.fwd || moveState.bwd) controls.moveForward(direction.z * moveSpeed);
+                if (moveState.left || moveState.right) controls.moveRight(direction.x * moveSpeed);
                 
-                const moveVec = new THREE.Vector3();
-                if(moveInput.f) moveVec.add(camDir); if(moveInput.b) moveVec.sub(camDir);
-                if(moveInput.r) moveVec.add(camSide); if(moveInput.l) moveVec.sub(camSide);
-                moveVec.normalize().multiplyScalar(speed * delta);
-
-                const nextPos = camera.position.clone().add(moveVec);
-                const playerBox = new THREE.Box3().setFromCenterAndSize(nextPos, new THREE.Vector3(1, 4, 1));
+                // Keep player on floor
+                camera.position.y = 5; 
                 
-                let collide = false;
-                for(let wall of walls) { if(playerBox.intersectsBox(wall)) { collide = true; break; } }
-                if(!collide) {
-                    camera.position.add(moveVec);
-                    if(moveVec.length() > 0 && Math.sin(time * 0.015) > 0.9) SoundGen.playStep();
-                }
-                camera.position.y = 4 + Math.sin(time * 0.01) * 0.1; 
+                // Wall Collision (Very Basic)
+                walls.forEach(box => {
+                    if(box.containsPoint(camera.position)) {
+                        controls.moveForward(direction.z * -moveSpeed * 1.5); // Bounce back
+                    }
+                });
             }
 
-            if(STATE.stamina < 100) STATE.stamina += 0.2;
-            if(STATE.anxiety > 0) STATE.anxiety -= 0.05;
-            document.getElementById('anxiety-bar').style.width = STATE.anxiety + "%";
-            document.getElementById('stamina-bar').style.width = STATE.stamina + "%";
+            updateAryan();
+            
+            // Floating Objectives
+            scene.children.forEach(c => {
+                if(c.userData.isPrank) c.rotation.y += 0.05;
+            });
 
-            // Safe Zone Logic
-            let safe = false;
-            for(let e of roomTriggers) if(camera.position.distanceTo(e.pos) < e.radius) safe = true;
-            STATE.inSafeZone = safe;
-            document.getElementById('safe-msg').style.display = safe ? 'block' : 'none';
-
-            if(!aryan.userData.stunned) {
-                const pPos = camera.position;
-                if(pPos.distanceTo(aryan.position) < 3) {
-                    document.getElementById('lose-screen').style.display = 'flex';
-                    controls.unlock(); STATE.isPlaying = false;
-                }
-                
-                if(STATE.inSafeZone && !STATE.bossActive) {
-                    // Flee
-                    const away = new THREE.Vector3().subVectors(aryan.position, pPos).normalize();
-                    aryan.position.add(away.multiplyScalar(0.1));
-                    aryan.lookAt(aryan.position.clone().add(away));
-                } else {
-                    // Chase
-                    const dir = new THREE.Vector3().subVectors(pPos, aryan.position).normalize();
-                    aryan.position.add(dir.multiplyScalar(aryan.userData.speed));
-                    aryan.lookAt(pPos);
-                }
-                aryan.position.y = (STATE.bossActive ? 2 : 0) + Math.abs(Math.sin(time * 0.01)) * 0.5;
+            // Anxiety decay
+            if(STATE.anxiety > 0) {
+                STATE.anxiety -= 0.05;
+                updateUI();
             }
-
-            projectiles.forEach((p, i) => {
-                p.age += delta; p.scale += 30 * delta;
-                p.mesh.scale.set(p.scale, p.scale, p.scale); p.mesh.material.opacity = 1 - (p.age * 2);
-                if(p.age > 0.5) { scene.remove(p.mesh); projectiles.splice(i, 1); }
-            });
-            floaters.forEach((f, i) => {
-                f.age += delta; f.mesh.position.y += delta * 2;
-                f.mesh.material.opacity = 1 - (f.age * 0.5);
-                if(f.age > 2) { scene.remove(f.mesh); floaters.splice(i, 1); }
-            });
-
-            // Minimap
-            const ctx = document.getElementById('minimap').getContext('2d');
-            ctx.fillStyle='#000'; ctx.fillRect(0,0,200,200);
-            const p = camera.position;
-            ctx.save(); ctx.translate(100,100); ctx.rotate(-camera.rotation.y); ctx.translate(-p.x*3, -p.z*3);
-            ctx.fillStyle='#008080'; walls.forEach(w => { const width = w.max.x - w.min.x; const depth = w.max.z - w.min.z; ctx.fillRect(w.min.x*3, w.min.z*3, width*3, depth*3); });
-            ctx.fillStyle='red'; ctx.beginPath(); ctx.arc(aryan.position.x*3, aryan.position.z*3, 5, 0, 6.28); ctx.fill();
-            ctx.restore();
-            ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(100,100,4,0,6.28); ctx.fill();
 
             renderer.render(scene, camera);
         }
-        
+
+        function updateUI() {
+            document.getElementById('anxiety-bar').style.width = STATE.anxiety + '%';
+        }
+
+        function endGame(victory) {
+            STATE.isPlaying = false;
+            controls.unlock();
+            if(victory) {
+                document.getElementById('win-screen').style.display = 'flex';
+            } else {
+                document.getElementById('lose-screen').style.display = 'flex';
+            }
+        }
+
+        // --- BOOT ---
         init();
+
     </script>
 </body>
 </html>
